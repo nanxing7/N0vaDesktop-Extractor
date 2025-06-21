@@ -1,44 +1,31 @@
-﻿using Microsoft.Win32;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using Microsoft.Win32;
 
 namespace N0vaDesktopExtractor
 {
     internal class Program
     {
+        private const string UninstallSubKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\人工桌面";
+        private const string InstallPathKey = "InstallPath";
+        
         private static readonly string Worker = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "n0va_output");
 
         static void Main(string[] args)
         {
             Console.Title = "人工桌面 N0vaDesktop Extractor by Kyle";
 
-            // SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\人工桌面 || InstallPath
-            // SYSTEM\ControlSet001\Services\N0vaDesktop Service || ImagePath
-
-            var regKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\ControlSet001\Services\N0vaDesktop Service");
-            if (regKey == null)
-            {
-                Fail("您尚未安装人工桌面");
-                return;
-            }
-
-            var ImagePath = regKey.GetValue("ImagePath");
-            if (ImagePath == null || string.IsNullOrEmpty(ImagePath.ToString()))
-            {
-                Fail("您的程序已损坏");
-                return;
-            }
-
-            var InstallPath = Path.GetDirectoryName(ImagePath.ToString());
-            if (string.IsNullOrEmpty(InstallPath) || !Directory.Exists(InstallPath))
+            var installPath = GetInstallPath();
+            
+            if (string.IsNullOrEmpty(installPath) || !Directory.Exists(installPath))
             {
                 Fail("找不到资源文件目录");
                 return;
             }
 
-            var ResourcePath = Path.Combine(InstallPath, "N0vaDesktopCache", "game");
-            if (!Directory.Exists(ResourcePath))
+            var resourcePath = Path.Combine(installPath, "N0vaDesktopCache", "game");
+            if (!Directory.Exists(resourcePath))
             {
                 Fail("找不到资源文件目录");
                 return;
@@ -54,7 +41,7 @@ namespace N0vaDesktopExtractor
             var videos = 0;
             var fails = 0;
 
-            foreach (var file in Directory.GetFiles(ResourcePath))
+            foreach (var file in Directory.GetFiles(resourcePath))
             {
                 try
                 {
@@ -200,6 +187,25 @@ namespace N0vaDesktopExtractor
             public int Width;
             //public int Bpc;
             //public int Cps;
+        }
+        
+        private static string GetInstallPath()
+        {
+            using (var baseKey64 = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
+            using (var subKey64 = baseKey64.OpenSubKey(UninstallSubKeyPath))
+            {
+                var value = subKey64?.GetValue(InstallPathKey) as string;
+                if (!string.IsNullOrEmpty(value))
+                {
+                    return value;
+                }
+            }
+
+            using (var baseKey32 = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32))
+            using (var subKey32 = baseKey32.OpenSubKey(UninstallSubKeyPath))
+            {
+                return subKey32?.GetValue(InstallPathKey) as string;
+            }
         }
     }
 }
